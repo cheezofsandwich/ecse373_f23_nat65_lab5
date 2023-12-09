@@ -8,6 +8,9 @@
 #include "tf2_ros/tranform_listener.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "geometry_msgs/TransformStamped.h"
+#include "sensor_msgs/JointState.h"
+#include "trajectory_msgs/JointTrajectory.h"
+
 
 std_srvs::Trigger begin_comp;
 
@@ -19,11 +22,18 @@ std::vector<osrf_gear::LogicalCameraImage> bin_cams;
 std::vector<osrf_gear::LogicalCameraImage> qual_cams;
 std::vector<osrf_gear::LogicalCameraImage> agv_cams;
 geometry_msgs::PoseStamped part_pose, goal_pose;
+// current state of joints of robot
+sensor_msgs::JointState joint_states;
 
 // Declare the transformation buffer to maintain a list of transformations
 tf2_ros::Buffer tfBuffer;
 // Instantiate a listener that listens to the tf and tf_static topics and to update the buffer.
 tf2_ros::TransformListener tfListener(tfBuffer);
+
+// Instantiate variables for use with the kinematic system.
+double T_pose[4][4], T_des[4][4];
+double q_pose[6], q_des[8][6]
+trajectory_msgs::JointTrajectory desired;
 
 
 void ordersCallback(const osrf_gear::Order::ConstPtr& msg) {
@@ -80,6 +90,11 @@ geometry_msgs::TransformStamped get_transform(const std:String& end_frame, const
     // tf2_ross::Buffer.lookupTransform("to_frame", "from_frame", "how_recent", "how_long_to_wait_for_transform");
 }
 
+void jointStatesCallback(const sensor_msgs::JointState::ConstPtr& joint_msg){
+  joint_states = *joint_msg;
+}
+
+
 
 int main(int argc, char **argv) {
 
@@ -121,6 +136,86 @@ int main(int argc, char **argv) {
         agv_cam_subs[i] = nh.subscribe<osrf_gear::LogicalCameraImage>(agv_topic, 1000, avgCamCallback);
         qual_cam_subs[i] = nh.subscribe<osrf_gear::LogicalCameraImage>(quality_topic, 1000, qualCamCallback);
     }
+    //joint_state subscriber
+    ros::Subscriber joint_states_subscriber = n.subscribe("/ariac/arm1/joint_states", 10, jointStatesCallback);
+    // Where is the end effector given the joint angles.
+    // joint_states.position[0] is the linear_arm_actuator_joint
+    q_pose[0] = joint_states.position[1];
+    q_pose[1] = joint_states.position[2];
+    q_pose[2] = joint_states.position[3];
+    q_pose[3] = joint_states.position[4];
+    q_pose[4] = joint_states.position[5];
+    q_pose[5] = joint_states.position[6];
+    
+    ur_kinematics::forward((float *)&q_pose, (double *)&T_pose);
+    
+    // Desired pose of the end effector wrt the base_link.
+    T_des[0][3] = desired.pose.position.x;
+    T_des[1][3] = desired.pose.position.y;
+    T_des[2][3] = desired.pose.position.z + 0.3; // above part
+    T_des[3][3] = 1.0;
+    // The orientation of the end effector so that the end effector is down.
+    T_des[0][0] = 0.0; T_des[0][1] = -1.0; T_des[0][2] = 0.0;
+    T_des[1][0] = 0.0; T_des[1][1] = 0.0; T_des[1][2] = 1.0;
+    T_des[2][0] = -1.0; T_des[2][1] = 0.0; T_des[2][2] = 0.0;
+    T_des[3][0] = 0.0; T_des[3][1] = 0.0; T_des[3][2] = 0.0;
+    
+    int num_sols = ur_kinematics::inverse((double *)&T_des, (double *)&q_des);
+    
+    
+    
+    	// Declare a variable for generating and publishing a trajectory.
+	trajectory_msgs::JointTrajectory joint_trajectory;
+	// Fill out the joint trajectory header.
+	// Each joint trajectory should have an non-monotonically increasing sequence number.
+	joint_trajectory.header.seq = count++;
+	joint_trajectory.header.stamp = ros::Time::now(); // When was this message created.
+	joint_trajectory.header.frame_id = "/world"; // Frame in which this is specified.
+	5 of 9
+	© Copyright 2019-2023, Gregory S. Lee, Ph.D.
+	Modern Robot Programming ECSE 373/473
+	// Set the names of the joints being used. All must be present.
+	joint_trajectory.joint_names.clear();
+	joint_trajectory.joint_names.push_back("linear_arm_actuator_joint");
+	joint_trajectory.joint_names.push_back("shoulder_pan_joint");
+	joint_trajectory.joint_names.push_back("shoulder_lift_joint");
+	joint_trajectory.joint_names.push_back("elbow_joint");
+	joint_trajectory.joint_names.push_back("wrist_1_joint");
+	joint_trajectory.joint_names.push_back("wrist_2_joint");
+	joint_trajectory.joint_names.push_back("wrist_3_joint");
+	// Set a start and end point.
+	joint_trajectory.points.resize(2);
+	// Set the start point to the current position of the joints from joint_states.
+	joint_trajectory.points[0].positions.resize(joint_trajectory.joint_names.size());
+	for (int indy = 0; indy < joint_trajectory.joint_names.size(); indy++) {
+		for (int indz = 0; indz < joint_states.name.size(); indz++) {
+			if (joint_trajectory.joint_names[indy] == joint_states.name[indz]) {
+				joint_trajectory.points[0].positions[indy] = joint_states.position[indz];
+				break;
+			}
+		}
+	}
+	// When to start (immediately upon receipt).
+	joint_trajectory.points[0].time_from_start = ros::Duration(0.0);
+	// Must select which of the num_sols solutions to use. Just start with the first.
+	int q_des_indx = 0;
+	// Set the end point for the movement
+	joint_trajectory.points[1].positions.resize(joint_trajectory.joint_names.size());
+	// Set the linear_arm_actuator_joint from joint_states as it is not part of the inverse
+	kinematics solution.
+	joint_trajectory.points[1].positions[0] = joint_states.position[1];
+	// The actuators are commanded in an odd order, enter the joint positions in the correct
+	positions
+	for (int indy = 0; indy < 6; indy++) {
+	joint_trajectory.points[1].positions[indy + 1] = q_sols[q_sols_indx][indy];
+	}
+	// How long to take for the movement.
+	joint_trajectory.points[1].time_from_start = ros::Duration
+    
+    // Create a subscriber for receiving the state of the joints of the robot.
+    ros::Subscriber joint_states_h = n.subscribe("ariac/arm1/joint_states", 10, jointCB);
+    
+
 
 
     // Initiate the competition client
@@ -148,13 +243,30 @@ int main(int argc, char **argv) {
 		ROS_INFO("Competition service called successfully: %s", begin_comp.response.message.c_str());
 	}
 	
-    ROS_INFO("Beginning of ROS loop");
+	// Wait for existence of PoseIK service
+	 if (!ros::service::waitForService("PoseIK", 10)) {
+	ROS_WARN("Inverse Kinematic service not found");
+	}
+	
+	// Wait for existence of material_locations service
+	if (!ros::service::waitForService("/ariac/material_locations", ros::Duration(10))) {
+    	ROS_ERROR("Material location service is not available after 30s.");
+	}
+	
+    	ROS_INFO("Beginning of ROS loop");
+    	
+    	ros::AsyncSpinner spinner(1); // Use 1 thread
+	spinner.start(); // A spinner makes calling ros::spin() unnecessary.
 	
 	while(ros::ok()) {
 		
 		// Clear variables to be used
 		prod_types.clear();
 		prod_bins.clear();
+		
+		// Publish current joints states every 10 seconds
+		ROS_INFO_STREAM_THROTTLE(10, joint_states);
+		
 
 		// Iterate while there are orders left to process
 		while (order.size() > 0){
