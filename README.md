@@ -1,4 +1,4 @@
-# ECSE 373 Laboratory #5
+# ECSE 473 Ariac 2019 Project (Fall 2023)
 
 ## Set up
 
@@ -59,7 +59,11 @@ After this there should be 3 workspaces, two which are relevant. Ariac_ws wich h
 
 `roslaunch ariac_entry entry.launch`
 
-Wait for the gazebo window to open. Once it is fully loaded, hit the play button at the bottom of the screen to begin.
+Wait for the gazebo window to open. Once it is fully loaded, run the following line in terminal:
+
+`rosrun ariac_entry ariac_entry`
+
+
 
 ## Package Objectives
 
@@ -79,4 +83,30 @@ The purpose of this package is to process orders in the ARIAC simulation by:
   (and the bin) when an order is received. Provide the location of the part in the reference
   frame of the logical_camera, and in the reference frame of the robot
   arm1_base_link.
+  
+## Tags
+
+### Lab 5
+The initial creation of this document, has basic functionality to run in gazebo.
+
+### Lab 6
+Related to ik_service node that should be downloaded, ensures compatibility.
+
+### Lab 7
+Sets up the ability fo the arm and base to move and complete orders as requested.
+
+### Phase 1
+This allows the arm to lift and move parts.
+
+### Phase 2 and 3
+This allows the base and agv camera feeds to work as intended.
+
+### Phase 4
+This is the final phase of the project, processing two orders and two shipments as given.
+
+## Theory of Operation
+See the attached png file with the block diagram.
+
+## Known Errors
+The lab does not work entirely as intended, as there are some bugs. Unfortunately, the loop to iterate through orders freezes occaisonally and the reasoning is unknown. This can prevent the arm from moving any more and picking up the next parts for the shipment. This works sometimes, and other times does not.
 
