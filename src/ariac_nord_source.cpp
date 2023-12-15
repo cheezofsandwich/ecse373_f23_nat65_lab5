@@ -46,7 +46,7 @@ std::string camera_topics[] = {
 // Phase 1
 ros::ServiceClient gripper_client;
 
-// Phase 2&3
+//  Phase 2&3
 ros::ServiceClient agv1_client;
 ros::ServiceClient agv2_client;
 
